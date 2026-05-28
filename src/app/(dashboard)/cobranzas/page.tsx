@@ -73,11 +73,12 @@ export default async function CobranzasPage({
     .limit(500);
 
   // Última sincronización.
-  const { data: cfg } = await supabase
+  const { data: cfgData } = await supabase
     .from("config")
     .select("ultima_sincronizacion")
     .eq("singleton", true)
     .single();
+  const cfg = cfgData as { ultima_sincronizacion: string | null } | null;
 
   return (
     <CobranzasContent

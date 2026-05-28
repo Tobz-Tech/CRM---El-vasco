@@ -5,23 +5,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ConfigForms } from "./config-forms";
 import { PageHeader } from "@/components/page-header";
 import { formatearFecha, tiempoRelativo } from "@/lib/utils";
+import type { Config, SyncLog } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
 
-  const { data: cfg } = await supabase
+  const { data: cfgData } = await supabase
     .from("config")
     .select("*")
     .eq("singleton", true)
     .single();
+  const cfg = cfgData as Config | null;
 
-  const { data: logs } = await supabase
+  const { data: logsData } = await supabase
     .from("sync_logs")
     .select("*")
     .order("iniciado_en", { ascending: false })
     .limit(20);
+  const logs = (logsData ?? []) as SyncLog[];
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -67,14 +70,14 @@ export default async function ConfiguracionPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(logs ?? []).length === 0 && (
+              {logs.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     Todavía no hay sincronizaciones registradas.
                   </TableCell>
                 </TableRow>
               )}
-              {(logs ?? []).map((l) => (
+              {logs.map((l) => (
                 <TableRow key={l.id}>
                   <TableCell className="text-sm">{formatearFecha(l.iniciado_en)}</TableCell>
                   <TableCell>
