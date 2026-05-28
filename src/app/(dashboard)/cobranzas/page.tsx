@@ -12,6 +12,7 @@ interface SearchParams {
   asignacion?: string; // "todos" | "sin_asignar" | "asignados"
   cliente?: string;
   q?: string;
+  [key: string]: string | undefined;
 }
 
 const POR_PAGINA = 25;

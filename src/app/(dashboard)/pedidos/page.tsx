@@ -9,6 +9,7 @@ interface SearchParams {
   hasta?: string;
   cliente?: string;
   q?: string;
+  [key: string]: string | undefined;
 }
 
 const POR_PAGINA = 25;
