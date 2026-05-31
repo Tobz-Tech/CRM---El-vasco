@@ -12,6 +12,7 @@ import { normalizarCuit } from "@/lib/utils";
 const Schema = z.object({
   nombre: z.string().trim().min(1),
   apellido: z.string().trim().optional().nullable(),
+  nombre_local: z.string().trim().optional().nullable(),
   cuit_cuil: z.string().trim().optional().nullable(),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   telefono: z.string().trim().optional().nullable(),

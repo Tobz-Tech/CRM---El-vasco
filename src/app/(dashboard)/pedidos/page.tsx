@@ -29,7 +29,7 @@ export default async function PedidosPage({
     .from("pedidos")
     .select(
       `id, fecha, nota, total,
-       cliente:clientes(id, nombre, apellido, cuit_cuil),
+       cliente:clientes(id, nombre, apellido, nombre_local, cuit_cuil),
        pedido_items(id, descripcion, cantidad)`,
       { count: "exact" }
     )

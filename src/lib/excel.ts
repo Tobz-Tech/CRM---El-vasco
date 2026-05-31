@@ -36,6 +36,7 @@ export const COLUMNAS_REPORTE_MOVIMIENTOS: ColumnaReporte[] = [
   { header: "Pagador (email)", key: "pagador_email", width: 28 },
   { header: "Pagador (CUIT)", key: "pagador_cuit", width: 16 },
   { header: "Cliente asignado", key: "cliente_nombre", width: 28 },
+  { header: "Local del cliente", key: "cliente_local", width: 24 },
   { header: "CUIT cliente", key: "cliente_cuit", width: 16 },
   { header: "Asignado auto", key: "asignado_auto", width: 14 },
 ];
@@ -98,6 +99,7 @@ export function generarCsvReporte(filas: Record<string, any>[]): string {
 export const COLUMNAS_TEMPLATE_CLIENTES: ColumnaReporte[] = [
   { header: "nombre", key: "nombre", width: 22 },
   { header: "apellido", key: "apellido", width: 22 },
+  { header: "nombre_local", key: "nombre_local", width: 28 },
   { header: "cuit_cuil", key: "cuit_cuil", width: 18 },
   { header: "email", key: "email", width: 28 },
   { header: "telefono", key: "telefono", width: 18 },
@@ -125,6 +127,7 @@ export async function generarTemplateClientes(): Promise<Buffer> {
   ws.addRow({
     nombre: "Juan",
     apellido: "Pérez",
+    nombre_local: "Kiosco Don Pepe",
     cuit_cuil: "20123456789",
     email: "juan@ejemplo.com",
     telefono: "1122334455",
@@ -168,6 +171,7 @@ export interface FilaClienteImportada {
   fila: number;
   nombre: string;
   apellido: string | null;
+  nombre_local: string | null;
   cuit_cuil: string | null;
   email: string | null;
   telefono: string | null;
@@ -250,6 +254,7 @@ export async function leerClientesDesdeExcel(buffer: Buffer): Promise<{
       fila: i,
       nombre,
       apellido: get(row, "apellido"),
+      nombre_local: get(row, "nombre_local"),
       cuit_cuil: get(row, "cuit_cuil"),
       email: get(row, "email"),
       telefono: get(row, "telefono"),

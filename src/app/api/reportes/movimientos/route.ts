@@ -64,7 +64,7 @@ export async function GET(request: Request) {
        descripcion, direccion, comision_mp,
        pagador_email, pagador_doc_numero, pagador_nombre, pagador_apellido,
        asignado_automaticamente,
-       cliente:clientes(nombre, apellido, cuit_cuil)`
+       cliente:clientes(nombre, apellido, nombre_local, cuit_cuil)`
     )
     .order("fecha_creacion", { ascending: false })
     .limit(50000);
@@ -115,6 +115,7 @@ export async function GET(request: Request) {
     cliente_nombre: m.cliente
       ? [m.cliente.nombre, m.cliente.apellido].filter(Boolean).join(" ")
       : "",
+    cliente_local: m.cliente?.nombre_local ?? "",
     cliente_cuit: m.cliente?.cuit_cuil ?? "",
     asignado_auto: m.asignado_automaticamente ? "Sí" : "No",
   }));

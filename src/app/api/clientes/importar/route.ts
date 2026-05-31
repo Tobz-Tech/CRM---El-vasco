@@ -92,6 +92,7 @@ export async function POST(request: Request) {
     filasParaInsertar.push({
       nombre: f.nombre,
       apellido: f.apellido,
+      nombre_local: f.nombre_local,
       cuit_cuil: f.cuit_cuil,
       email: f.email,
       telefono: f.telefono,

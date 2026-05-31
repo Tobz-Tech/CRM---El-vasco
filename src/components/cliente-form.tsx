@@ -48,6 +48,12 @@ export function ClienteForm({ modo, cliente }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field name="nombre" label="Nombre *" defaultValue={cliente?.nombre ?? ""} required />
         <Field name="apellido" label="Apellido" defaultValue={cliente?.apellido ?? ""} />
+        <Field
+          name="nombre_local"
+          label="Nombre del local / negocio"
+          defaultValue={cliente?.nombre_local ?? ""}
+          placeholder="ej: Kiosco Don Pepe"
+        />
         <Field name="cuit_cuil" label="CUIT/CUIL" defaultValue={cliente?.cuit_cuil ?? ""} placeholder="20123456789" />
         <Field name="email" label="Email" type="email" defaultValue={cliente?.email ?? ""} />
         <Field name="telefono" label="Teléfono" defaultValue={cliente?.telefono ?? ""} />

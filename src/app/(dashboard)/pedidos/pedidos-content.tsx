@@ -26,7 +26,7 @@ interface PedidoFila {
   fecha: string;
   nota: string | null;
   total: number;
-  cliente: { id: string; nombre: string; apellido: string | null; cuit_cuil: string | null } | null;
+  cliente: { id: string; nombre: string; apellido: string | null; nombre_local: string | null; cuit_cuil: string | null } | null;
   pedido_items: { id: string; descripcion: string; cantidad: number }[];
 }
 
@@ -198,6 +198,9 @@ export function PedidosContent({
                         </Link>
                       ) : (
                         <span className="text-muted-foreground">—</span>
+                      )}
+                      {p.cliente?.nombre_local && (
+                        <div className="text-xs text-slate-600">🏪 {p.cliente.nombre_local}</div>
                       )}
                       {p.cliente?.cuit_cuil && (
                         <div className="text-xs text-muted-foreground">CUIT {formatearCuit(p.cliente.cuit_cuil)}</div>

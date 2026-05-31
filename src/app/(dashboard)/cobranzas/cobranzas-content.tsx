@@ -39,7 +39,7 @@ interface MovRow {
   pagador_apellido: string | null;
   cliente_id: string | null;
   asignado_automaticamente: boolean;
-  cliente: { id: string; nombre: string; apellido: string | null; cuit_cuil: string | null } | null;
+  cliente: { id: string; nombre: string; apellido: string | null; nombre_local: string | null; cuit_cuil: string | null } | null;
 }
 
 interface ClienteOpcion {
@@ -319,10 +319,15 @@ export function CobranzasContent({
                   </TableCell>
                   <TableCell>
                     {m.cliente ? (
-                      <Link href={`/clientes/${m.cliente.id}`} className="text-primary hover:underline text-sm">
-                        {m.cliente.nombre} {m.cliente.apellido ?? ""}
-                        {m.asignado_automaticamente && <Badge variant="secondary" className="ml-2">auto</Badge>}
-                      </Link>
+                      <div>
+                        <Link href={`/clientes/${m.cliente.id}`} className="text-primary hover:underline text-sm">
+                          {m.cliente.nombre} {m.cliente.apellido ?? ""}
+                          {m.asignado_automaticamente && <Badge variant="secondary" className="ml-2">auto</Badge>}
+                        </Link>
+                        {m.cliente.nombre_local && (
+                          <div className="text-xs text-slate-600">🏪 {m.cliente.nombre_local}</div>
+                        )}
+                      </div>
                     ) : m.direccion === "entrada" ? (
                       <Badge variant="alerta">Sin asignar</Badge>
                     ) : (

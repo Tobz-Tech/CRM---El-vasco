@@ -35,7 +35,7 @@ export default async function CobranzasPage({
       `id, mp_payment_id, monto, neto_recibido, fecha_creacion, estado, tipo_operacion,
        descripcion, direccion, pagador_email, pagador_doc_numero, pagador_nombre,
        pagador_apellido, cliente_id, asignado_automaticamente,
-       cliente:clientes(id, nombre, apellido, cuit_cuil)`,
+       cliente:clientes(id, nombre, apellido, nombre_local, cuit_cuil)`,
       { count: "exact" }
     )
     .order("fecha_creacion", { ascending: false })

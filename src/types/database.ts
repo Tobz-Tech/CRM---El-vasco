@@ -15,6 +15,7 @@ export interface Cliente {
   id: string;
   nombre: string;
   apellido: string | null;
+  nombre_local: string | null;
   cuit_cuil: string | null;
   email: string | null;
   telefono: string | null;

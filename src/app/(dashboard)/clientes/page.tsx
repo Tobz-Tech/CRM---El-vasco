@@ -35,7 +35,7 @@ export default async function ClientesPage({
   if (q && q.trim()) {
     const term = q.trim();
     query = query.or(
-      `nombre.ilike.%${term}%,apellido.ilike.%${term}%,cuit_cuil.ilike.%${term}%,email.ilike.%${term}%`
+      `nombre.ilike.%${term}%,apellido.ilike.%${term}%,nombre_local.ilike.%${term}%,cuit_cuil.ilike.%${term}%,email.ilike.%${term}%`
     );
   }
 
@@ -124,6 +124,9 @@ export default async function ClientesPage({
                       <Link href={`/clientes/${c.id}`} className="font-medium text-primary hover:underline">
                         {c.nombre} {c.apellido ?? ""}
                       </Link>
+                      {c.nombre_local && (
+                        <div className="text-xs font-medium text-slate-600">🏪 {c.nombre_local}</div>
+                      )}
                       {c.email && <div className="text-xs text-muted-foreground">{c.email}</div>}
                     </TableCell>
                     <TableCell className="text-sm">{c.cuit_cuil ? formatearCuit(c.cuit_cuil) : "—"}</TableCell>

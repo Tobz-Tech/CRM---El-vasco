@@ -11,6 +11,7 @@ export interface ClienteOpcion {
   id: string;
   nombre: string;
   apellido: string | null;
+  nombre_local?: string | null;
   cuit_cuil: string | null;
 }
 
@@ -42,6 +43,7 @@ export function ClienteSelector({
       .filter((c) => {
         const full = `${c.nombre ?? ""} ${c.apellido ?? ""}`.toLowerCase();
         if (full.includes(term)) return true;
+        if (c.nombre_local && c.nombre_local.toLowerCase().includes(term)) return true;
         if (numTerm && c.cuit_cuil && normalizarCuit(c.cuit_cuil).includes(numTerm)) return true;
         return false;
       })
@@ -101,16 +103,19 @@ export function ClienteSelector({
                   type="button"
                   onClick={() => { onChange(c.id); setOpen(false); }}
                   className={cn(
-                    "w-full text-left px-3 py-2 hover:bg-accent flex items-center gap-2 text-sm",
+                    "w-full text-left px-3 py-2 hover:bg-accent flex items-start gap-2 text-sm",
                     activo && "bg-accent"
                   )}
                 >
-                  <Check className={cn("h-4 w-4", activo ? "opacity-100" : "opacity-0")} />
-                  <span className="flex-1 truncate">
-                    {c.nombre} {c.apellido ?? ""}
+                  <Check className={cn("h-4 w-4 mt-0.5 shrink-0", activo ? "opacity-100" : "opacity-0")} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block truncate">{c.nombre} {c.apellido ?? ""}</span>
+                    {c.nombre_local && (
+                      <span className="block text-xs text-slate-600 truncate">🏪 {c.nombre_local}</span>
+                    )}
                   </span>
                   {c.cuit_cuil && (
-                    <span className="text-xs text-muted-foreground">{formatearCuit(c.cuit_cuil)}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">{formatearCuit(c.cuit_cuil)}</span>
                   )}
                 </button>
               </li>

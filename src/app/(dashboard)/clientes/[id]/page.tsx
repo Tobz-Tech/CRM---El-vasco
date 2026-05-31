@@ -142,6 +142,9 @@ export default async function PerfilClientePage({
 
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{cliente.nombre} {cliente.apellido ?? ""}</h1>
+        {cliente.nombre_local && (
+          <p className="text-base font-medium text-slate-700">🏪 {cliente.nombre_local}</p>
+        )}
         {cliente.cuit_cuil && <p className="text-sm text-muted-foreground">CUIT/CUIL: {cliente.cuit_cuil}</p>}
       </div>
 
