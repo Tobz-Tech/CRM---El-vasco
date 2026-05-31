@@ -262,41 +262,53 @@ export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> 
     // Si alguno matchea con un cliente actual (porque el usuario lo creó o le agregó
     // el CUIT después de haber recibido el pago), lo asigna ahora.
     //
-    // IMPORTANTE: normalizamos ambos lados con normalizarCuit() antes de comparar,
-    // porque puede haber CUITs guardados con guiones u otros formatos. Esto evita
-    // que el match falle por diferencia de formato.
+    // Estrategia: traemos TODO con queries simples (sin filtros complejos que pueden
+    // fallar silenciosamente) y filtramos/normalizamos en JS.
     let asignadosRetroactivos = 0;
-    const { data: sinAsignar } = await admin
-      .from("movimientos")
-      .select("id, pagador_doc_numero")
-      .is("cliente_id", null)
-      .eq("direccion", "entrada")
-      .not("pagador_doc_numero", "is", null)
-      .limit(10000);
+    let debugRetro = "";
 
-    if (sinAsignar && sinAsignar.length > 0) {
-      // Normalizamos los CUITs de los movimientos.
-      const movsConCuitNorm = sinAsignar
-        .map((m) => ({ id: m.id, cuitNorm: normalizarCuit(m.pagador_doc_numero ?? "") }))
+    // 1) Traer todos los movimientos (solo los campos que necesitamos).
+    const { data: todosMovs, error: errMovs } = await admin
+      .from("movimientos")
+      .select("id, pagador_doc_numero, cliente_id, direccion")
+      .limit(50000);
+
+    if (errMovs) {
+      debugRetro = `errMovs: ${errMovs.message}`;
+    } else {
+      // 2) Filtrar en JS: solo entrantes sin asignar con CUIT.
+      const movsRetro = (todosMovs ?? [])
+        .filter((m) =>
+          m.cliente_id === null &&
+          m.direccion === "entrada" &&
+          m.pagador_doc_numero
+        )
+        .map((m) => ({
+          id: m.id as string,
+          cuitNorm: normalizarCuit(m.pagador_doc_numero ?? ""),
+        }))
         .filter((x) => x.cuitNorm);
 
-      if (movsConCuitNorm.length > 0) {
-        // Traemos TODOS los clientes con CUIT (sin filtrar por .in() porque
-        // los formatos pueden diferir). El filtrado lo hacemos en JS normalizando.
-        const { data: clientesRetro } = await admin
-          .from("clientes")
-          .select("id, cuit_cuil")
-          .not("cuit_cuil", "is", null);
+      // 3) Traer todos los clientes (sin filtros que puedan fallar).
+      const { data: todosClientes, error: errClientes } = await admin
+        .from("clientes")
+        .select("id, cuit_cuil");
 
-        // Mapa indexado por CUIT normalizado.
+      if (errClientes) {
+        debugRetro = `errClientes: ${errClientes.message}`;
+      } else {
+        // 4) Mapa de CUIT normalizado -> cliente.id.
         const mapaRetro = new Map<string, string>();
-        for (const c of clientesRetro ?? []) {
+        for (const c of todosClientes ?? []) {
           if (!c.cuit_cuil) continue;
           const norm = normalizarCuit(c.cuit_cuil);
-          if (norm) mapaRetro.set(norm, c.id);
+          if (norm) mapaRetro.set(norm, c.id as string);
         }
 
-        for (const m of movsConCuitNorm) {
+        debugRetro = `movs_retro=${movsRetro.length}, clientes_con_cuit=${mapaRetro.size}`;
+
+        // 5) Por cada mov, buscar match y actualizar.
+        for (const m of movsRetro) {
           const clienteId = mapaRetro.get(m.cuitNorm);
           if (!clienteId) continue;
           // El .is("cliente_id", null) extra evita pisar si alguien lo asignó manualmente entremedio.
@@ -307,6 +319,8 @@ export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> 
             .is("cliente_id", null);
           if (!retroErr) asignadosRetroactivos += 1;
         }
+
+        debugRetro += `, asignados=${asignadosRetroactivos}`;
       }
     }
 
@@ -325,6 +339,9 @@ export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> 
       asignados_auto: asignadosAutoTotal,
       rango_desde: desde.toISOString(),
       rango_hasta: ahora.toISOString(),
+      // Debug temporal: dejamos info del matcheo retroactivo en error_mensaje
+      // aunque sea exito, así podemos ver qué hizo. Esto se puede limpiar después.
+      error_mensaje: debugRetro || null,
     });
 
     return {
