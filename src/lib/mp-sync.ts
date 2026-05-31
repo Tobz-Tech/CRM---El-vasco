@@ -39,12 +39,22 @@ const OVERLAP_MIN = 10;        // Solapamos 10 min con la última sincronizació
 const PRIMERA_CORRIDA_DIAS = 60; // En la primera sincronización, traemos los últimos 60 días.
 
 export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> {
+  // Marker de versión para confirmar qué código está corriendo en producción.
+  // Si vemos "VERSION_MARKER_v3" en error_mensaje, el código nuevo está vivo.
+  const VERSION_MARKER = "VERSION_MARKER_v3";
+  console.log(`[sincronizarMP] ${VERSION_MARKER} - Iniciando sync ${opts.disparadoPor}`);
+
   const admin = createAdminClient();
 
-  // 1) Crear entry en sync_logs (estado 'corriendo')
+  // 1) Crear entry en sync_logs (estado 'corriendo'). Inicializamos error_mensaje
+  // con el marker para que sepamos sí o sí qué versión corrió.
   const { data: logRow, error: logErr } = await admin
     .from("sync_logs")
-    .insert({ estado: "corriendo", disparado_por: opts.disparadoPor })
+    .insert({
+      estado: "corriendo",
+      disparado_por: opts.disparadoPor,
+      error_mensaje: VERSION_MARKER,
+    })
     .select("id")
     .single();
   if (logErr) throw new Error(`No pude crear sync_log: ${logErr.message}`);
