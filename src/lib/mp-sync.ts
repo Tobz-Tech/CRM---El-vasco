@@ -138,31 +138,21 @@ export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> 
       return true;
     });
 
-    if (filtrados.length === 0) {
-      await admin.from("config").update({ ultima_sincronizacion: ahora.toISOString() }).eq("singleton", true);
-      await finalizarLog("exito", {
-        movimientos_nuevos: 0,
-        movimientos_actualizados: 0,
-        asignados_auto: 0,
-        rango_desde: desde.toISOString(),
-        rango_hasta: ahora.toISOString(),
-      });
-      return {
-        movimientos_nuevos: 0,
-        movimientos_actualizados: 0,
-        asignados_auto: 0,
-        rango_desde: desde.toISOString(),
-        rango_hasta: ahora.toISOString(),
-      };
-    }
+    // NOTA: ya NO hacemos early return cuando filtrados.length === 0.
+    // Aunque MP no traiga movimientos nuevos, igual queremos correr el matcheo
+    // retroactivo (asignar a cliente movimientos viejos que matchean por CUIT
+    // con clientes nuevos). Por eso seguimos hasta el final de la función.
 
     // 8) Saber cuáles ya existen para diferenciar nuevos vs actualizados.
     const ids = filtrados.map((p) => p.id);
-    const { data: existentes } = await admin
-      .from("movimientos")
-      .select("mp_payment_id")
-      .in("mp_payment_id", ids);
-    const setExistentes = new Set((existentes ?? []).map((m) => m.mp_payment_id));
+    let setExistentes = new Set<number>();
+    if (ids.length > 0) {
+      const { data: existentes } = await admin
+        .from("movimientos")
+        .select("mp_payment_id")
+        .in("mp_payment_id", ids);
+      setExistentes = new Set((existentes ?? []).map((m) => m.mp_payment_id));
+    }
 
     // 9) Pre-cargar clientes con CUIT para matcheo automático.
     // Traemos TODOS los clientes con CUIT y normalizamos en JS para evitar
@@ -392,3 +382,4 @@ function armarTelefono(phone: MPPaymentRaw["payer"] extends infer P ? (P extends
   return area_code ? `${area_code}${number}` : number;
 }
 // force rebuild 1780248196
+// force-rebuild 1780248231
