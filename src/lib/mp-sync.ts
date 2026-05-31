@@ -64,9 +64,20 @@ export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> 
     estado: "exito" | "error",
     extra: Partial<Database["public"]["Tables"]["sync_logs"]["Update"]>
   ) => {
+    // Construimos el objeto de update explícitamente para evitar que algún
+    // bundler / type cast filtre campos en silencio.
+    const updateObj: Record<string, unknown> = {
+      estado,
+      finalizado_en: new Date().toISOString(),
+    };
+    for (const k of Object.keys(extra)) {
+      updateObj[k] = (extra as Record<string, unknown>)[k];
+    }
+    // Cast a any para evitar que el tipo Partial filtre el error_mensaje.
     await admin
       .from("sync_logs")
-      .update({ estado, finalizado_en: new Date().toISOString(), ...extra })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update(updateObj as any)
       .eq("id", logId);
   };
 
@@ -349,10 +360,16 @@ export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> 
       asignados_auto: asignadosAutoTotal,
       rango_desde: desde.toISOString(),
       rango_hasta: ahora.toISOString(),
-      // Debug temporal: dejamos info del matcheo retroactivo en error_mensaje
-      // aunque sea exito, así podemos ver qué hizo. Esto se puede limpiar después.
-      error_mensaje: debugRetro || null,
     });
+
+    // Segunda update EXPLÍCITA solo de error_mensaje con la info de debug.
+    // Hacemos esto separado por las dudas que algún cast filtre el campo.
+    const debugFinal = `v4 | ${debugRetro || "sin-debug"} | asign_auto_total=${asignadosAutoTotal}`;
+    await admin
+      .from("sync_logs")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ error_mensaje: debugFinal } as any)
+      .eq("id", logId);
 
     return {
       movimientos_nuevos: movimientosNuevos,
