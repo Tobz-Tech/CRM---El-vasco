@@ -144,22 +144,26 @@ export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> 
     const setExistentes = new Set((existentes ?? []).map((m) => m.mp_payment_id));
 
     // 9) Pre-cargar clientes con CUIT para matcheo automático.
+    // Traemos TODOS los clientes con CUIT y normalizamos en JS para evitar
+    // mismatches por formato (con/sin guiones).
     const cuitsAMatchear = new Set<string>();
     for (const p of filtrados) {
       const cuit = normalizarCuit(p.payer?.identification?.number ?? "");
       if (cuit) cuitsAMatchear.add(cuit);
     }
-    let mapaClientesPorCuit = new Map<string, string>();
+    const mapaClientesPorCuit = new Map<string, string>();
     if (cuitsAMatchear.size > 0) {
       const { data: clientesMatch } = await admin
         .from("clientes")
         .select("id, cuit_cuil")
-        .in("cuit_cuil", Array.from(cuitsAMatchear));
-      mapaClientesPorCuit = new Map(
-        (clientesMatch ?? [])
-          .filter((c) => c.cuit_cuil)
-          .map((c) => [c.cuit_cuil as string, c.id])
-      );
+        .not("cuit_cuil", "is", null);
+      for (const c of clientesMatch ?? []) {
+        if (!c.cuit_cuil) continue;
+        const norm = normalizarCuit(c.cuit_cuil);
+        if (norm && cuitsAMatchear.has(norm)) {
+          mapaClientesPorCuit.set(norm, c.id);
+        }
+      }
     }
 
     // 10) Armar filas.
@@ -257,6 +261,10 @@ export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> 
     // Buscar TODOS los movimientos entrantes que están sin asignar y tienen CUIT.
     // Si alguno matchea con un cliente actual (porque el usuario lo creó o le agregó
     // el CUIT después de haber recibido el pago), lo asigna ahora.
+    //
+    // IMPORTANTE: normalizamos ambos lados con normalizarCuit() antes de comparar,
+    // porque puede haber CUITs guardados con guiones u otros formatos. Esto evita
+    // que el match falle por diferencia de formato.
     let asignadosRetroactivos = 0;
     const { data: sinAsignar } = await admin
       .from("movimientos")
@@ -267,25 +275,29 @@ export async function sincronizarMP(opts: OpcionesSync): Promise<ResultadoSync> 
       .limit(10000);
 
     if (sinAsignar && sinAsignar.length > 0) {
-      const cuitsRetro = Array.from(
-        new Set(sinAsignar.map((m) => m.pagador_doc_numero).filter(Boolean) as string[])
-      );
+      // Normalizamos los CUITs de los movimientos.
+      const movsConCuitNorm = sinAsignar
+        .map((m) => ({ id: m.id, cuitNorm: normalizarCuit(m.pagador_doc_numero ?? "") }))
+        .filter((x) => x.cuitNorm);
 
-      if (cuitsRetro.length > 0) {
+      if (movsConCuitNorm.length > 0) {
+        // Traemos TODOS los clientes con CUIT (sin filtrar por .in() porque
+        // los formatos pueden diferir). El filtrado lo hacemos en JS normalizando.
         const { data: clientesRetro } = await admin
           .from("clientes")
           .select("id, cuit_cuil")
-          .in("cuit_cuil", cuitsRetro);
+          .not("cuit_cuil", "is", null);
 
-        const mapaRetro = new Map<string, string>(
-          (clientesRetro ?? [])
-            .filter((c) => c.cuit_cuil)
-            .map((c) => [c.cuit_cuil as string, c.id])
-        );
+        // Mapa indexado por CUIT normalizado.
+        const mapaRetro = new Map<string, string>();
+        for (const c of clientesRetro ?? []) {
+          if (!c.cuit_cuil) continue;
+          const norm = normalizarCuit(c.cuit_cuil);
+          if (norm) mapaRetro.set(norm, c.id);
+        }
 
-        for (const m of sinAsignar) {
-          if (!m.pagador_doc_numero) continue;
-          const clienteId = mapaRetro.get(m.pagador_doc_numero);
+        for (const m of movsConCuitNorm) {
+          const clienteId = mapaRetro.get(m.cuitNorm);
           if (!clienteId) continue;
           // El .is("cliente_id", null) extra evita pisar si alguien lo asignó manualmente entremedio.
           const { error: retroErr } = await admin
