@@ -37,11 +37,26 @@ export function ImportarClientesModal({ trigger }: { trigger: React.ReactNode })
     startTransition(async () => {
       const fd = new FormData();
       fd.append("archivo", archivo);
-      const r = await fetch("/api/clientes/importar", { method: "POST", body: fd });
-      const json = (await r.json()) as ResultadoImport;
-      setResultado(json);
-      if (json.ok && (json.creados ?? 0) > 0) {
-        router.refresh();
+      try {
+        const r = await fetch("/api/clientes/importar", { method: "POST", body: fd });
+        // Leer como texto primero para no romper si la respuesta no es JSON (ej. 500 vacío).
+        const txt = await r.text();
+        let json: ResultadoImport;
+        try {
+          json = txt ? JSON.parse(txt) : { ok: false, error: `Error ${r.status} sin respuesta del servidor` };
+        } catch {
+          json = { ok: false, error: `Respuesta inesperada del servidor (HTTP ${r.status}): ${txt.slice(0, 200)}` };
+        }
+        if (!r.ok && !json.error) {
+          json.ok = false;
+          json.error = `Error HTTP ${r.status}`;
+        }
+        setResultado(json);
+        if (json.ok && (json.creados ?? 0) > 0) {
+          router.refresh();
+        }
+      } catch (err) {
+        setResultado({ ok: false, error: `Error de red: ${(err as Error).message}` });
       }
     });
   }
@@ -76,7 +91,7 @@ export function ImportarClientesModal({ trigger }: { trigger: React.ReactNode })
           <input
             ref={inputRef}
             type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
             className="block w-full text-sm file:mr-3 file:rounded file:border file:border-input file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-accent"
           />

@@ -181,6 +181,138 @@ export interface FilaClienteImportada {
   notas: string | null;
 }
 
+/**
+ * Parser de CSV simple que maneja:
+ *   - Campos con coma adentro (entrecomillados: "Hola, mundo")
+ *   - Comillas escapadas ("dijo ""hola""")
+ *   - Fines de línea \n y \r\n
+ *   - BOM al principio
+ */
+function parsearCsv(texto: string): string[][] {
+  // Sacar BOM si existe
+  if (texto.charCodeAt(0) === 0xfeff) texto = texto.slice(1);
+
+  const filas: string[][] = [];
+  let filaActual: string[] = [];
+  let campoActual = "";
+  let dentroDeComillas = false;
+
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+    const next = texto[i + 1];
+
+    if (dentroDeComillas) {
+      if (c === '"' && next === '"') {
+        campoActual += '"';
+        i++; // saltar la segunda comilla
+      } else if (c === '"') {
+        dentroDeComillas = false;
+      } else {
+        campoActual += c;
+      }
+    } else {
+      if (c === '"') {
+        dentroDeComillas = true;
+      } else if (c === ",") {
+        filaActual.push(campoActual);
+        campoActual = "";
+      } else if (c === "\n") {
+        filaActual.push(campoActual);
+        filas.push(filaActual);
+        filaActual = [];
+        campoActual = "";
+      } else if (c === "\r") {
+        // ignorar
+      } else {
+        campoActual += c;
+      }
+    }
+  }
+
+  // Última fila si no terminó con newline
+  if (campoActual.length > 0 || filaActual.length > 0) {
+    filaActual.push(campoActual);
+    filas.push(filaActual);
+  }
+
+  return filas;
+}
+
+/**
+ * Lee clientes desde un CSV (mismo formato que la plantilla Excel).
+ */
+export function leerClientesDesdeCsv(texto: string): {
+  filas: FilaClienteImportada[];
+  errores: { fila: number; mensaje: string }[];
+} {
+  const matriz = parsearCsv(texto);
+  if (matriz.length === 0) {
+    return { filas: [], errores: [{ fila: 0, mensaje: "El archivo está vacío." }] };
+  }
+
+  // Header en la primera fila
+  const header = matriz[0].map((h) => (h ?? "").trim().toLowerCase());
+  const colIndex: Record<string, number> = {};
+  header.forEach((h, i) => { if (h) colIndex[h] = i; });
+
+  if (!("nombre" in colIndex)) {
+    return {
+      filas: [],
+      errores: [{
+        fila: 1,
+        mensaje: 'No encontré la columna "nombre" en el encabezado. Asegurate de usar la plantilla.',
+      }],
+    };
+  }
+
+  const get = (row: string[], key: string): string | null => {
+    const idx = colIndex[key];
+    if (idx === undefined) return null;
+    const v = row[idx];
+    if (v === undefined || v === null) return null;
+    const trimmed = String(v).trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
+  const filas: FilaClienteImportada[] = [];
+  const errores: { fila: number; mensaje: string }[] = [];
+
+  for (let i = 1; i < matriz.length; i++) {
+    const row = matriz[i];
+    // Si la fila es totalmente vacía (todos los campos son strings vacíos), saltarla
+    if (row.every((c) => !c || c.trim() === "")) continue;
+
+    const nombre = get(row, "nombre");
+    if (!nombre) {
+      if (
+        get(row, "apellido") ||
+        get(row, "cuit_cuil") ||
+        get(row, "email") ||
+        get(row, "telefono")
+      ) {
+        errores.push({ fila: i + 1, mensaje: 'Falta "nombre" en esta fila.' });
+      }
+      continue;
+    }
+
+    filas.push({
+      fila: i + 1,
+      nombre,
+      apellido: get(row, "apellido"),
+      nombre_local: get(row, "nombre_local"),
+      cuit_cuil: get(row, "cuit_cuil"),
+      email: get(row, "email"),
+      telefono: get(row, "telefono"),
+      direccion: get(row, "direccion"),
+      localidad: get(row, "localidad"),
+      provincia: get(row, "provincia"),
+      notas: get(row, "notas"),
+    });
+  }
+
+  return { filas, errores };
+}
+
 export async function leerClientesDesdeExcel(buffer: Buffer): Promise<{
   filas: FilaClienteImportada[];
   errores: { fila: number; mensaje: string }[];
