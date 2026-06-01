@@ -96,6 +96,73 @@ export function generarCsvReporte(filas: Record<string, any>[]): string {
 // TEMPLATE DE CLIENTES (write)
 // =============================================================================
 
+// =============================================================================
+// REPORTE RESUMEN POR CLIENTE (estado de cuenta)
+// =============================================================================
+
+export const COLUMNAS_RESUMEN_CLIENTES: ColumnaReporte[] = [
+  { header: "Cliente", key: "cliente", width: 30 },
+  { header: "Local / negocio", key: "local", width: 25 },
+  { header: "CUIT/CUIL", key: "cuit", width: 16 },
+  { header: "Total pagado", key: "pagado", width: 16 },
+  { header: "Total consumido", key: "consumido", width: 16 },
+  { header: "Saldo", key: "saldo", width: 16 },
+  { header: "Estado", key: "estado_cuenta", width: 14 },
+  { header: "Cant. pagos", key: "cant_pagos", width: 12 },
+  { header: "Cant. pedidos", key: "cant_pedidos", width: 12 },
+  { header: "Último pago", key: "ultimo_pago", width: 20 },
+];
+
+export async function generarExcelResumen(
+  filas: Record<string, unknown>[]
+): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "MP Cobranzas";
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet("Estado de cuenta");
+  ws.columns = COLUMNAS_RESUMEN_CLIENTES;
+
+  ws.getRow(1).font = { bold: true };
+  ws.getRow(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFE2E8F0" },
+  };
+
+  ws.addRows(filas);
+
+  const colsMoneda = ["pagado", "consumido", "saldo"];
+  for (const k of colsMoneda) {
+    ws.getColumn(k).numFmt = '"$" #,##0.00';
+  }
+
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf as ArrayBuffer);
+}
+
+export function generarCsvResumen(filas: Record<string, unknown>[]): string {
+  const cols = COLUMNAS_RESUMEN_CLIENTES;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const escape = (v: any) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+  const header = cols.map((c) => escape(c.header)).join(",");
+  const body = filas.map((f) => cols.map((c) => escape(f[c.key])).join(",")).join("\n");
+  return `﻿${header}\n${body}`;
+}
+
+// =============================================================================
+// TEMPLATE DE CLIENTES (write)
+// =============================================================================
+
 export const COLUMNAS_TEMPLATE_CLIENTES: ColumnaReporte[] = [
   { header: "nombre", key: "nombre", width: 22 },
   { header: "apellido", key: "apellido", width: 22 },

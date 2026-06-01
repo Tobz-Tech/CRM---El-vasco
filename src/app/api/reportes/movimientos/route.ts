@@ -4,6 +4,8 @@ import {
   COLUMNAS_REPORTE_MOVIMIENTOS,
   generarCsvReporte,
   generarExcelReporte,
+  generarCsvResumen,
+  generarExcelResumen,
   type FormatoExport,
 } from "@/lib/excel";
 import {
@@ -24,12 +26,15 @@ import {
  *   - asignacion  (todos | sin_asignar | asignados, opcional)
  *   - q           (texto libre: monto, email, CUIT, descripción)
  *   - formato     (xlsx | csv, default xlsx)
+ *   - detallado   (true | false, default false)
+ *                 - false → resumen por cliente con estado de cuenta
+ *                 - true  → una fila por movimiento (modo viejo)
  *
- * Devuelve el archivo descargable. Los filtros son los mismos que los de la
- * pantalla de Cobranzas, así que la descarga respeta lo que ves en pantalla.
+ * Devuelve el archivo descargable.
  */
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
@@ -48,6 +53,7 @@ export async function GET(request: Request) {
   const asignacion = searchParams.get("asignacion");
   const qTexto = searchParams.get("q");
   const formato = (searchParams.get("formato") ?? "xlsx") as FormatoExport;
+  const detallado = searchParams.get("detallado") === "true";
 
   if (formato !== "xlsx" && formato !== "csv") {
     return NextResponse.json(
@@ -56,7 +62,72 @@ export async function GET(request: Request) {
     );
   }
 
-  // Query a la base de datos. Aplica los mismos filtros que la pantalla.
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  // =========================================================================
+  // MODO RESUMEN (una fila por cliente)
+  // =========================================================================
+  if (!detallado) {
+    // Traemos el estado de cuenta de cada cliente desde la vista.
+    let query = supabase
+      .from("clientes_con_totales")
+      .select(
+        "id, nombre, apellido, nombre_local, cuit_cuil, total_recibido_historico, total_consumido, saldo, cantidad_movimientos, cantidad_pedidos, ultimo_pago_fecha"
+      )
+      .order("nombre", { ascending: true });
+
+    if (clienteId) query = query.eq("id", clienteId);
+
+    const { data, error } = await query.limit(50000);
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const filas = (data ?? []).map((c: any) => {
+      const saldo = Number(c.saldo ?? 0);
+      const estadoCuenta = saldo > 0 ? "Debe" : saldo < 0 ? "A favor" : "Al día";
+      return {
+        cliente: [c.nombre, c.apellido].filter(Boolean).join(" "),
+        local: c.nombre_local ?? "",
+        cuit: c.cuit_cuil ?? "",
+        pagado: Number(c.total_recibido_historico ?? 0),
+        consumido: Number(c.total_consumido ?? 0),
+        saldo: saldo,
+        estado_cuenta: estadoCuenta,
+        cant_pagos: c.cantidad_movimientos ?? 0,
+        cant_pedidos: c.cantidad_pedidos ?? 0,
+        ultimo_pago: c.ultimo_pago_fecha ? formatearFecha(c.ultimo_pago_fecha) : "",
+      };
+    });
+
+    const filename = `estado-de-cuenta-${stamp}.${formato}`;
+
+    if (formato === "csv") {
+      const csv = generarCsvResumen(filas);
+      return new NextResponse(csv, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+        },
+      });
+    }
+
+    const buf = await generarExcelResumen(filas);
+    return new NextResponse(buf as unknown as BodyInit, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Length": String(buf.byteLength),
+      },
+    });
+  }
+
+  // =========================================================================
+  // MODO DETALLADO (una fila por movimiento)
+  // =========================================================================
   let query = supabase
     .from("movimientos")
     .select(
@@ -98,7 +169,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  // Mapear filas al formato del reporte.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filas = (data ?? []).map((m: any) => ({
     fecha: formatearFecha(m.fecha_creacion),
     mp_payment_id: m.mp_payment_id,
@@ -120,9 +191,7 @@ export async function GET(request: Request) {
     asignado_auto: m.asignado_automaticamente ? "Sí" : "No",
   }));
 
-  // Nombre del archivo.
-  const stamp = new Date().toISOString().slice(0, 10);
-  const filename = `cobranzas-${stamp}.${formato}`;
+  const filename = `cobranzas-detallado-${stamp}.${formato}`;
 
   if (formato === "csv") {
     const csv = generarCsvReporte(filas);
@@ -135,11 +204,9 @@ export async function GET(request: Request) {
     });
   }
 
-  // XLSX
   const buf = await generarExcelReporte(filas);
-  // Aclaración: no marcamos las columnas para tipescript pero las usamos.
   void COLUMNAS_REPORTE_MOVIMIENTOS;
-  return new NextResponse(buf as any, {
+  return new NextResponse(buf as unknown as BodyInit, {
     status: 200,
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

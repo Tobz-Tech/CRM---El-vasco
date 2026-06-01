@@ -39,6 +39,7 @@ export function DescargarReporteModal({ open, onClose, clientes, filtrosActuales
   const [hasta, setHasta] = useState(filtrosActuales.hasta ?? "");
   const [cliente, setCliente] = useState<string>(filtrosActuales.cliente ?? "todos");
   const [formato, setFormato] = useState<"xlsx" | "csv">("xlsx");
+  const [detallado, setDetallado] = useState(false);
 
   // Re-sincronizamos los campos cada vez que el modal se abre, así toma
   // los filtros más actuales de la pantalla.
@@ -67,12 +68,15 @@ export function DescargarReporteModal({ open, onClose, clientes, filtrosActuales
     if (desde) p.set("desde", desde);
     if (hasta) p.set("hasta", hasta);
     if (cliente && cliente !== "todos") p.set("cliente", cliente);
-    // Pasamos los filtros ocultos también para que el reporte coincida con la pantalla.
-    if (filtrosActuales.tipo && filtrosActuales.tipo !== "todos") p.set("tipo", filtrosActuales.tipo);
-    if (filtrosActuales.estado && filtrosActuales.estado !== "todos") p.set("estado", filtrosActuales.estado);
-    if (filtrosActuales.asignacion && filtrosActuales.asignacion !== "todos") p.set("asignacion", filtrosActuales.asignacion);
-    if (filtrosActuales.q) p.set("q", filtrosActuales.q);
+    // Los filtros "ocultos" solo aplican al modo detallado.
+    if (detallado) {
+      if (filtrosActuales.tipo && filtrosActuales.tipo !== "todos") p.set("tipo", filtrosActuales.tipo);
+      if (filtrosActuales.estado && filtrosActuales.estado !== "todos") p.set("estado", filtrosActuales.estado);
+      if (filtrosActuales.asignacion && filtrosActuales.asignacion !== "todos") p.set("asignacion", filtrosActuales.asignacion);
+      if (filtrosActuales.q) p.set("q", filtrosActuales.q);
+    }
     p.set("formato", formato);
+    p.set("detallado", detallado ? "true" : "false");
     window.location.href = `/api/reportes/movimientos?${p.toString()}`;
     onClose();
   }
@@ -126,7 +130,26 @@ export function DescargarReporteModal({ open, onClose, clientes, filtrosActuales
           </Select>
         </div>
 
-        {filtrosExtra.length > 0 && (
+        <div className="rounded-md border bg-slate-50 p-3">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={detallado}
+              onChange={(e) => setDetallado(e.target.checked)}
+              className="mt-0.5 h-4 w-4"
+            />
+            <span>
+              <span className="block font-medium text-sm">Detalle por transferencia</span>
+              <span className="block text-xs text-muted-foreground">
+                {detallado
+                  ? "Una fila por cada movimiento (fecha, monto, pagador, etc.). Respeta los filtros activos en la pantalla."
+                  : "Una fila por cliente con su estado de cuenta (pagado, consumido, saldo)."}
+              </span>
+            </span>
+          </label>
+        </div>
+
+        {filtrosExtra.length > 0 && detallado && (
           <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
             <div className="flex items-center gap-1 font-medium mb-1">
               <Filter className="h-3.5 w-3.5" /> Otros filtros activos en la pantalla (también se aplican)
@@ -134,6 +157,12 @@ export function DescargarReporteModal({ open, onClose, clientes, filtrosActuales
             <ul className="list-disc list-inside space-y-0.5">
               {filtrosExtra.map((f, i) => <li key={i}>{f}</li>)}
             </ul>
+          </div>
+        )}
+        {filtrosExtra.length > 0 && !detallado && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <div className="font-medium mb-1">Atención</div>
+            En modo resumen los filtros de tipo, estado, asignación y búsqueda <strong>no se aplican</strong> — el resumen muestra el estado de cuenta total de cada cliente. Si querés esos filtros, tildá &ldquo;Detalle por transferencia&rdquo;.
           </div>
         )}
 
