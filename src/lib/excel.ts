@@ -105,11 +105,7 @@ export const COLUMNAS_RESUMEN_CLIENTES: ColumnaReporte[] = [
   { header: "Local / negocio", key: "local", width: 25 },
   { header: "CUIT/CUIL", key: "cuit", width: 16 },
   { header: "Total pagado", key: "pagado", width: 16 },
-  { header: "Total consumido", key: "consumido", width: 16 },
-  { header: "Saldo", key: "saldo", width: 16 },
-  { header: "Estado", key: "estado_cuenta", width: 14 },
   { header: "Cant. pagos", key: "cant_pagos", width: 12 },
-  { header: "Cant. pedidos", key: "cant_pedidos", width: 12 },
   { header: "Último pago", key: "ultimo_pago", width: 20 },
 ];
 
@@ -132,10 +128,7 @@ export async function generarExcelResumen(
 
   ws.addRows(filas);
 
-  const colsMoneda = ["pagado", "consumido", "saldo"];
-  for (const k of colsMoneda) {
-    ws.getColumn(k).numFmt = '"$" #,##0.00';
-  }
+  ws.getColumn("pagado").numFmt = '"$" #,##0.00';
 
   ws.views = [{ state: "frozen", ySplit: 1 }];
 
