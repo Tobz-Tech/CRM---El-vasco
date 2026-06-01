@@ -24,6 +24,7 @@ const ClienteSchema = z.object({
   provincia: z.string().trim().optional().nullable(),
   mp_payer_id: z.string().trim().optional().nullable(),
   notas: z.string().trim().optional().nullable(),
+  excluir_de_reportes: z.boolean().optional(),
 });
 
 function parsearFormData(formData: FormData) {
@@ -33,6 +34,8 @@ function parsearFormData(formData: FormData) {
   }
   // Normalizar CUIT (sacarle guiones).
   if (obj.cuit_cuil) obj.cuit_cuil = normalizarCuit(obj.cuit_cuil);
+  // Checkbox: "on" cuando está tildado, ausente cuando no.
+  obj.excluir_de_reportes = obj.excluir_de_reportes === "on" || obj.excluir_de_reportes === "true";
   // Pasar strings vacíos a null para que la unique de CUIT no choque.
   for (const k of Object.keys(obj)) {
     if (obj[k] === "") obj[k] = null;

@@ -24,6 +24,7 @@ export interface Cliente {
   provincia: string | null;
   mp_payer_id: string | null;
   notas: string | null;
+  excluir_de_reportes: boolean;
   created_at: string;
   updated_at: string;
   created_by: string | null;

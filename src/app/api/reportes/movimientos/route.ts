@@ -68,9 +68,17 @@ export async function GET(request: Request) {
   // MODO RESUMEN (una fila por cliente)
   // Si hay filtros de fecha/cliente, calculamos totales sobre los movimientos
   // filtrados. Si no hay filtros, mostramos todos los clientes con su total histórico.
+  // Siempre se excluyen los clientes con excluir_de_reportes = true.
   // =========================================================================
   if (!detallado) {
     const hayFiltroFecha = !!(desde || hasta);
+
+    // Pre-cargar IDs de clientes excluidos para filtrarlos.
+    const { data: excluidosData } = await supabase
+      .from("clientes")
+      .select("id")
+      .eq("excluir_de_reportes", true);
+    const idsExcluidos = new Set((excluidosData ?? []).map((c) => c.id as string));
 
     // Construir query sobre movimientos con los filtros del usuario.
     let movsQuery = supabase
@@ -93,10 +101,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: errMovs.message }, { status: 500 });
     }
 
-    // Agrupar por cliente en JS.
+    // Agrupar por cliente en JS (saltando excluidos).
     const agrupado = new Map<string, { pagado: number; cant: number; ultimo: string | null }>();
     for (const m of movsData ?? []) {
       if (!m.cliente_id) continue;
+      if (idsExcluidos.has(m.cliente_id)) continue;
       const ex = agrupado.get(m.cliente_id) ?? { pagado: 0, cant: 0, ultimo: null };
       ex.pagado += Number(m.monto ?? 0);
       ex.cant += 1;
@@ -111,6 +120,7 @@ export async function GET(request: Request) {
     let clientesQuery = supabase
       .from("clientes")
       .select("id, nombre, apellido, nombre_local, cuit_cuil")
+      .eq("excluir_de_reportes", false)
       .order("nombre", { ascending: true });
 
     if (clienteId) {
@@ -168,12 +178,22 @@ export async function GET(request: Request) {
 
   // =========================================================================
   // MODO DETALLADO (una fila por movimiento)
+  // También se excluyen los movimientos asignados a clientes marcados como
+  // "excluir_de_reportes". Los no asignados sí aparecen.
   // =========================================================================
+
+  // Pre-cargar IDs de clientes excluidos.
+  const { data: excluidosDataDet } = await supabase
+    .from("clientes")
+    .select("id")
+    .eq("excluir_de_reportes", true);
+  const idsExcluidosDet = (excluidosDataDet ?? []).map((c) => c.id as string);
+
   let query = supabase
     .from("movimientos")
     .select(
       `id, mp_payment_id, monto, neto_recibido, fecha_creacion, estado, tipo_operacion,
-       descripcion, direccion, comision_mp,
+       descripcion, direccion, comision_mp, cliente_id,
        pagador_email, pagador_doc_numero, pagador_nombre, pagador_apellido,
        asignado_automaticamente,
        cliente:clientes(nombre, apellido, nombre_local, cuit_cuil)`
@@ -210,8 +230,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
+  // Filtrar movimientos asignados a clientes excluidos.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filas = (data ?? []).map((m: any) => ({
+  const dataFiltrada = (data ?? []).filter((m: any) =>
+    !m.cliente_id || !idsExcluidosDet.includes(m.cliente_id)
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filas = dataFiltrada.map((m: any) => ({
     fecha: formatearFecha(m.fecha_creacion),
     mp_payment_id: m.mp_payment_id,
     tipo: nombreTipoOperacion(m.tipo_operacion),

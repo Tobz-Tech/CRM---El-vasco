@@ -67,6 +67,24 @@ export function ClienteForm({ modo, cliente }: Props) {
         <Textarea id="notas" name="notas" defaultValue={cliente?.notas ?? ""} rows={3} />
       </div>
 
+      <div className="rounded-md border bg-slate-50 p-3">
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            id="excluir_de_reportes"
+            name="excluir_de_reportes"
+            type="checkbox"
+            defaultChecked={cliente?.excluir_de_reportes ?? false}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="block font-medium text-sm">Excluir de reportes</span>
+            <span className="block text-xs text-muted-foreground">
+              Si tildás esto, este cliente no aparece en los Excel descargados (resumen ni detallado). Útil para cuentas propias / familiares que querés tener en el sistema pero sin afectar los reportes.
+            </span>
+          </span>
+        </label>
+      </div>
+
       {error && (
         <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-900 border border-rose-200">{error}</div>
       )}
