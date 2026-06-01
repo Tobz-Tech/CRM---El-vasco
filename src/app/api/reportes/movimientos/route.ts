@@ -66,38 +66,79 @@ export async function GET(request: Request) {
 
   // =========================================================================
   // MODO RESUMEN (una fila por cliente)
+  // Si hay filtros de fecha/cliente, calculamos totales sobre los movimientos
+  // filtrados. Si no hay filtros, mostramos todos los clientes con su total histórico.
   // =========================================================================
   if (!detallado) {
-    // Traemos el estado de cuenta de cada cliente desde la vista.
-    let query = supabase
-      .from("clientes_con_totales")
-      .select(
-        "id, nombre, apellido, nombre_local, cuit_cuil, total_recibido_historico, total_consumido, saldo, cantidad_movimientos, cantidad_pedidos, ultimo_pago_fecha"
-      )
+    const hayFiltroFecha = !!(desde || hasta);
+
+    // Construir query sobre movimientos con los filtros del usuario.
+    let movsQuery = supabase
+      .from("movimientos")
+      .select("cliente_id, monto, fecha_creacion")
+      .eq("direccion", "entrada")
+      .eq("estado", "approved")
+      .not("cliente_id", "is", null);
+
+    if (desde) movsQuery = movsQuery.gte("fecha_creacion", new Date(desde).toISOString());
+    if (hasta) {
+      const h = new Date(hasta);
+      h.setHours(23, 59, 59, 999);
+      movsQuery = movsQuery.lte("fecha_creacion", h.toISOString());
+    }
+    if (clienteId) movsQuery = movsQuery.eq("cliente_id", clienteId);
+
+    const { data: movsData, error: errMovs } = await movsQuery.limit(100000);
+    if (errMovs) {
+      return NextResponse.json({ ok: false, error: errMovs.message }, { status: 500 });
+    }
+
+    // Agrupar por cliente en JS.
+    const agrupado = new Map<string, { pagado: number; cant: number; ultimo: string | null }>();
+    for (const m of movsData ?? []) {
+      if (!m.cliente_id) continue;
+      const ex = agrupado.get(m.cliente_id) ?? { pagado: 0, cant: 0, ultimo: null };
+      ex.pagado += Number(m.monto ?? 0);
+      ex.cant += 1;
+      if (!ex.ultimo || (m.fecha_creacion && m.fecha_creacion > ex.ultimo)) {
+        ex.ultimo = m.fecha_creacion;
+      }
+      agrupado.set(m.cliente_id, ex);
+    }
+
+    // Traer info de los clientes. Si no hay filtro de fecha, traemos TODOS (para que aparezcan
+    // también los que no tienen pagos). Si hay filtro de fecha, traemos solo los que tuvieron actividad.
+    let clientesQuery = supabase
+      .from("clientes")
+      .select("id, nombre, apellido, nombre_local, cuit_cuil")
       .order("nombre", { ascending: true });
 
-    if (clienteId) query = query.eq("id", clienteId);
+    if (clienteId) {
+      clientesQuery = clientesQuery.eq("id", clienteId);
+    } else if (hayFiltroFecha) {
+      const ids = Array.from(agrupado.keys());
+      if (ids.length === 0) {
+        clientesQuery = clientesQuery.eq("id", "00000000-0000-0000-0000-000000000000"); // ninguno
+      } else {
+        clientesQuery = clientesQuery.in("id", ids);
+      }
+    }
 
-    const { data, error } = await query.limit(50000);
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    const { data: clientesData, error: errCli } = await clientesQuery.limit(50000);
+    if (errCli) {
+      return NextResponse.json({ ok: false, error: errCli.message }, { status: 500 });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filas = (data ?? []).map((c: any) => {
-      const saldo = Number(c.saldo ?? 0);
-      const estadoCuenta = saldo > 0 ? "Debe" : saldo < 0 ? "A favor" : "Al día";
+    const filas = (clientesData ?? []).map((c: any) => {
+      const agg = agrupado.get(c.id) ?? { pagado: 0, cant: 0, ultimo: null };
       return {
         cliente: [c.nombre, c.apellido].filter(Boolean).join(" "),
         local: c.nombre_local ?? "",
         cuit: c.cuit_cuil ?? "",
-        pagado: Number(c.total_recibido_historico ?? 0),
-        consumido: Number(c.total_consumido ?? 0),
-        saldo: saldo,
-        estado_cuenta: estadoCuenta,
-        cant_pagos: c.cantidad_movimientos ?? 0,
-        cant_pedidos: c.cantidad_pedidos ?? 0,
-        ultimo_pago: c.ultimo_pago_fecha ? formatearFecha(c.ultimo_pago_fecha) : "",
+        pagado: agg.pagado,
+        cant_pagos: agg.cant,
+        ultimo_pago: agg.ultimo ? formatearFecha(agg.ultimo) : "",
       };
     });
 

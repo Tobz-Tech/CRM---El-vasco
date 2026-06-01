@@ -162,7 +162,7 @@ export function DescargarReporteModal({ open, onClose, clientes, filtrosActuales
         {filtrosExtra.length > 0 && !detallado && (
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             <div className="font-medium mb-1">Atención</div>
-            En modo resumen los filtros de tipo, estado, asignación y búsqueda <strong>no se aplican</strong> — el resumen muestra el estado de cuenta total de cada cliente. Si querés esos filtros, tildá &ldquo;Detalle por transferencia&rdquo;.
+            En modo resumen los filtros de tipo, estado, asignación y búsqueda <strong>no se aplican</strong> — solo se aplican las fechas y el cliente. Si querés esos otros filtros, tildá &ldquo;Detalle por transferencia&rdquo;.
           </div>
         )}
 
